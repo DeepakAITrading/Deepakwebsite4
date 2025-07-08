@@ -1,463 +1,590 @@
-import React, { useState, useEffect } from 'react';
-
-// Main App component
-const App = () => {
-    const [isDarkMode, setIsDarkMode] = useState(false);
-    const [selectedStrategy, setSelectedStrategy] = useState('');
-    const [strategyInputs, setStrategyInputs] = {};
-    const [aiExplanation, setAiExplanation] = useState(null);
-    const [simulationResults, setSimulationResults] = useState(null);
-    const [currentPage, setCurrentPage] = useState('strategyBuilder'); // 'strategyBuilder', 'simulation', 'dataViewer'
-    const [nseCompanies, setNseCompanies] = useState([]);
-    const [selectedCompanySymbol, setSelectedCompanySymbol] = useState('');
-    const [tradingData, setTradingData] = useState(null);
-    const [dataLoading, setDataLoading] = useState(false);
-    const [dataError, setDataError] = useState('');
-    const [nseCompaniesError, setNseCompaniesError] = useState('');
-
-    // Toggle dark mode
-    useEffect(() => {
-        if (isDarkMode) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indian Stock Market Option Trading Strategies</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-    }, [isDarkMode]);
 
-    // Fetch NSE companies when on Data Viewer page
-    useEffect(() => {
-        const fetchNseCompanies = async () => {
-            if (currentPage !== 'dataViewer') {
-                setNseCompanies([]); // Clear companies if not on data viewer
-                setNseCompaniesError(''); // Clear error
-                return;
-            }
-
-            setNseCompaniesError(''); // Clear previous error
-            try {
-                // *** CHANGED: Calling the new backend endpoint for external API data ***
-                const response = await fetch('http://127.0.0.1:8000/fetch-nse-companies-from-external-api');
-                if (!response.ok) {
-                    throw new Error('Failed to fetch NSE companies from external API source.');
-                }
-                const data = await response.json();
-                setNseCompanies(data);
-            } catch (err) {
-                console.error('Error fetching NSE companies:', err);
-                setNseCompaniesError(`Could not fetch NSE companies. Please ensure the backend server is running at http://127.0.0.1:8000 and the external NSE API is configured correctly. Error: ${err.message}`);
-            }
-        };
-
-        fetchNseCompanies();
-    }, [currentPage]);
-
-    // Fetch trading data when a company is selected
-    useEffect(() => {
-        const fetchTradingData = async () => {
-            if (!selectedCompanySymbol) {
-                setTradingData(null); // Clear data if no symbol selected
-                return;
-            }
-
-            setDataLoading(true);
-            setDataError('');
-            setTradingData(null); // Clear previous data
-
-            try {
-                const response = await fetch(`http://127.0.0.1:8000/trading-data/${selectedCompanySymbol}`); // Still uses Alpha Vantage via this endpoint
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'Failed to fetch trading data');
-                }
-                const data = await response.json();
-                setTradingData(data);
-            } catch (err) {
-                console.error('Error fetching trading data:', err);
-                setDataError(`Could not fetch trading data. Please ensure the backend server is running and the Alpha Vantage API key is configured. Error: ${err.message}`);
-            } finally {
-                setDataLoading(false);
-            }
-        };
-
-        fetchTradingData();
-    }, [selectedCompanySymbol]);
-
-
-    // Dummy data for strategies and their required inputs
-    const strategies = [
-        { name: 'Straddle', inputs: ['Strike Price', 'Premium', 'Expiry'] },
-        { name: 'Strangle', inputs: ['Strike Price 1', 'Strike Price 2', 'Premium 1', 'Premium 2', 'Expiry'] },
-        { name: 'Iron Condor', inputs: ['Call Strike 1', 'Call Strike 2', 'Put Strike 1', 'Put Strike 2', 'Call Premium 1', 'Call Premium 2', 'Put Premium 1', 'Put Premium 2', 'Expiry'] },
-        { name: 'Covered Call', inputs: ['Stock Price', 'Strike Price', 'Premium', 'Expiry'] },
-        // Add more strategies as needed
-    ];
-
-    // Handle strategy selection
-    const handleStrategyChange = (event) => {
-        const strategyName = event.target.value;
-        setSelectedStrategy(strategyName);
-        setStrategyInputs({}); // Reset inputs when strategy changes
-        setAiExplanation(null); // Clear AI explanation
-        setSimulationResults(null); // Clear simulation results
-    };
-
-    // Handle input changes for strategy parameters
-    const handleInputChange = (inputName, value) => {
-        setStrategyInputs(prevInputs => ({
-            ...prevInputs,
-            [inputName]: value,
-        }));
-    };
-
-    // Call backend for AI explanation
-    const generateAiExplanation = async () => {
-        try {
-            const response = await fetch('http://127.0.0.1:8000/ai-explanation', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ strategyName: selectedStrategy, inputs: strategyInputs }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Failed to get AI explanation');
-            }
-
-            const data = await response.json();
-            setAiExplanation(data);
-        } catch (err) {
-            console.error('Error fetching AI explanation:', err);
-            // Use a custom message box instead of alert
-            // alert(`Error: ${err.message}`);
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
         }
-    };
 
-    // Call backend for strategy simulation
-    const runSimulation = async () => {
-        try {
-            const response = await fetch('http://127.0.0.1:8000/run-simulation', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ strategyName: selectedStrategy, inputs: strategyInputs }),
-            });
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Failed to run simulation');
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            text-align: center;
+            color: #2c3e50;
+            font-size: 2.5em;
+            font-weight: 700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .screen {
+            display: none;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.6s ease-in-out;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-container {
+            max-width: 400px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .login-container h2 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .angel-logo {
+            width: 120px;
+            height: 60px;
+            background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .demo-info {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .dashboard-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .dashboard-section h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 40px 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #888;
+        }
+
+        .dropdown {
+            position: relative;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background: white;
+            min-width: 100%;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            margin-top: 5px;
+        }
+
+        .dropdown-content.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 12px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.2s ease;
+        }
+
+        .dropdown-item:hover {
+            background: #f8f9fa;
+            color: #667eea;
+        }
+
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .selected-company {
+            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .rate-display {
+            background: linear-gradient(45deg, #43e97b, #38f9d7);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .rate-display h4 {
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .rate-value {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .rate-change {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .rate-change.positive {
+            color: #00ff88;
+        }
+
+        .rate-change.negative {
+            color: #ff4757;
+        }
+
+        .live-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #00ff88;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .logout-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            float: right;
+            margin-bottom: 20px;
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
             }
-
-            const data = await response.json();
-            setSimulationResults(data);
-        } catch (err) {
-            console.error('Error running simulation:', err);
-            // Use a custom message box instead of alert
-            // alert(`Error: ${err.message}`);
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .container {
+                padding: 15px;
+            }
         }
-    };
-
-    const renderStrategyInputs = () => {
-        const currentStrategy = strategies.find(s => s.name === selectedStrategy);
-        if (!currentStrategy) return null;
-
-        return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                {currentStrategy.inputs.map(inputName => (
-                    <div key={inputName} className="flex flex-col">
-                        <label htmlFor={inputName} className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            {inputName}
-                        </label>
-                        <input
-                            type="text" // Could be 'number' for actual values
-                            id={inputName}
-                            value={strategyInputs[inputName] || ''}
-                            onChange={(e) => handleInputChange(inputName, e.target.value)}
-                            placeholder={`Enter ${inputName.toLowerCase()}`}
-                            className="p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        />
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    const renderAiExplanation = () => {
-        if (!aiExplanation) return null;
-
-        return (
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mt-8">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">AI Explanation: {aiExplanation.strategyName}</h3>
-                <p className="text-gray-700 dark:text-gray-300 mb-4">{aiExplanation.explanation}</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-gray-700 dark:text-gray-300">
-                    <div>
-                        <h4 className="font-semibold text-gray-800 dark:text-gray-200">Max Profit:</h4>
-                        <p>{aiExplanation.riskReward.maxProfit}</p>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold text-gray-800 dark:text-gray-200">Max Loss:</h4>
-                        <p>{aiExplanation.riskReward.maxLoss}</p>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold text-gray-800 dark:text-gray-200">Breakeven Points:</h4>
-                        <ul>
-                            {aiExplanation.riskReward.breakevenPoints.map((point, index) => (
-                                <li key={index}>{point}</li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    const renderSimulationResults = () => {
-        if (!simulationResults) return null;
-
-        return (
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mt-8">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Simulation Results</h3>
-                <p className="text-gray-700 dark:text-gray-300 mb-4">{simulationResults.summary}</p>
-
-                <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">Profit/Loss Table:</h4>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 rounded-lg overflow-hidden">
-                        <thead className="bg-gray-50 dark:bg-gray-700">
-                            <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300 rounded-tl-lg">
-                                    Price
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300 rounded-tr-lg">
-                                    P&L
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            {simulationResults.profitLossTable.map((row, index) => (
-                                <tr key={index}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                        {row.price}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                        {row.pnl}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Placeholder for a chart - In a real app, you'd use a library like Recharts here */}
-                <div className="mt-6 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg flex items-center justify-center h-64">
-                    <p className="text-gray-500 dark:text-gray-400">Chart will be rendered here (e.g., using Recharts)</p>
-                </div>
-            </div>
-        );
-    };
-
-    const renderContent = () => {
-        switch (currentPage) {
-            case 'strategyBuilder':
-                return (
-                    <>
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Strategy Builder</h2>
-                            <div className="mb-4">
-                                <label htmlFor="strategy-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Select Trading Strategy:
-                                </label>
-                                <select
-                                    id="strategy-select"
-                                    value={selectedStrategy}
-                                    onChange={handleStrategyChange}
-                                    className="block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                >
-                                    <option value="">-- Select a Strategy --</option>
-                                    {strategies.map(strategy => (
-                                        <option key={strategy.name} value={strategy.name}>
-                                            {strategy.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {selectedStrategy && (
-                                <>
-                                    {renderStrategyInputs()}
-                                    <button
-                                        onClick={generateAiExplanation}
-                                        className="mt-6 w-full md:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition duration-300 ease-in-out transform hover:scale-105"
-                                    >
-                                        Get AI Explanation
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                        {renderAiExplanation()}
-                    </>
-                );
-            case 'simulation':
-                return (
-                    <>
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Strategy Simulation</h2>
-                            <p className="text-gray-700 dark:text-gray-300 mb-4">
-                                Run simulations based on historical data or real-time inputs.
-                            </p>
-                            <button
-                                onClick={runSimulation}
-                                className="w-full md:w-auto px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition duration-300 ease-in-out transform hover:scale-105"
-                            >
-                                Run Simulation
-                            </button>
-                        </div>
-                        {renderSimulationResults()}
-                    </>
-                );
-            case 'dataViewer':
-                return (
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Data Viewer</h2>
-                        <p className="text-gray-700 dark:text-gray-300 mb-4">
-                            Select a company to view its historical trading data.
-                        </p>
-                        <div className="mb-4">
-                            <label htmlFor="company-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Select NSE Company:
-                            </label>
-                            <select
-                                id="company-select"
-                                value={selectedCompanySymbol}
-                                onChange={(e) => setSelectedCompanySymbol(e.target.value)}
-                                className="block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            >
-                                <option value="">-- Select a Company --</option>
-                                {nseCompanies.map(company => (
-                                    <option key={company.symbol} value={company.symbol}>
-                                        {company.name} ({company.symbol})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {nseCompaniesError && ( // Display error for NSE companies fetch
-                            <div className="mt-4 text-center text-red-500 dark:text-red-400">{nseCompaniesError}</div>
-                        )}
-
-                        {dataLoading && (
-                            <div className="mt-4 text-center text-blue-500 dark:text-blue-400">Loading trading data...</div>
-                        )}
-                        {dataError && (
-                            <div className="mt-4 text-center text-red-500 dark:text-red-400">{dataError}</div>
-                        )}
-
-                        {tradingData && (
-                            <div className="mt-6">
-                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                                    Trading Data for {tradingData.symbol}
-                                </h3>
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 rounded-lg overflow-hidden">
-                                        <thead className="bg-gray-50 dark:bg-gray-700">
-                                            <tr>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300 rounded-tl-lg">Date</th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">Open</th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">High</th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">Low</th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">Close</th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300 rounded-tr-lg">Volume</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                            {tradingData.data.map((point, index) => (
-                                                <tr key={index}>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{point.date}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{point.open}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{point.high}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{point.low}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{point.close}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{point.volume}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                );
-            default:
-                return null;
-        }
-    };
-
-    return (
-        <div className={`min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white font-inter transition-colors duration-300`}>
-            {/* Tailwind CSS CDN */}
-            <script src="https://cdn.tailwindcss.com"></script>
-            {/* Inter font from Google Fonts */}
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-
-            <header className="bg-white dark:bg-gray-800 shadow-md p-4 flex justify-between items-center rounded-b-lg">
-                <h1 className="text-3xl font-bold text-blue-600 dark:text-blue-400">QuantFlow</h1>
-                <div className="flex items-center space-x-4">
-                    <nav>
-                        <ul className="flex space-x-4">
-                            <li>
-                                <button
-                                    onClick={() => setCurrentPage('strategyBuilder')}
-                                    className={`px-4 py-2 rounded-lg font-medium ${currentPage === 'strategyBuilder' ? 'bg-blue-500 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
-                                >
-                                    Strategy Builder
-                                </button>
-                            </li>
-                            <li>
-                                <button
-                                    onClick={() => setCurrentPage('simulation')}
-                                    className={`px-4 py-2 rounded-lg font-medium ${currentPage === 'simulation' ? 'bg-blue-500 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
-                                >
-                                    Simulation
-                                </button>
-                            </li>
-                            <li>
-                                <button
-                                    onClick={() => setCurrentPage('dataViewer')}
-                                    className={`px-4 py-2 rounded-lg font-medium ${currentPage === 'dataViewer' ? 'bg-blue-500 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
-                                >
-                                    Data Viewer
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                    <button
-                        onClick={() => setIsDarkMode(!isDarkMode)}
-                        className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200"
-                        aria-label="Toggle dark mode"
-                    >
-                        {isDarkMode ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h1M3 12H2m15.325-4.525l-.707-.707M6.382 17.071l-.707-.707M17.071 6.382l-.707-.707M6.382 6.382l-.707-.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                            </svg>
-                        )}
-                    </button>
-                </div>
-            </header>
-
-            <main className="container mx-auto p-4 md:p-8">
-                {renderContent()}
-            </main>
-
-            <footer className="bg-white dark:bg-gray-800 shadow-t-md p-4 mt-8 text-center text-gray-600 dark:text-gray-400 rounded-t-lg">
-                <p>&copy; 2025 QuantFlow. All rights reserved.</p>
-            </footer>
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Indian Stock Market Option Trading Strategies</h1>
         </div>
-    );
-};
 
-export default App;
+        <!-- Screen One: Login -->
+        <div class="screen active" id="loginScreen">
+            <div class="login-container">
+                <div class="angel-logo">Angel Broking</div>
+                <h2>Smart API Login</h2>
+                
+                <div class="demo-info">
+                    <strong>Demo Mode:</strong> Enter any values in all three fields to proceed to the dashboard
+                </div>
+                
+                <div class="success-message" id="successMessage">
+                    Authentication successful! Redirecting to dashboard...
+                </div>
+                
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="clientId">Client ID</label>
+                        <input type="text" id="clientId" placeholder="Enter your Client ID (or any text for demo)" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Enter your Password (or any text for demo)" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="apiKey">API Key</label>
+                        <input type="text" id="apiKey" placeholder="Enter your API Key (or any text for demo)" required>
+                    </div>
+                    <button type="submit" class="btn" id="loginBtn">Login to Smart API</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Screen Two: Dashboard -->
+        <div class="screen" id="dashboardScreen">
+            <button class="logout-btn" onclick="logout()">Logout</button>
+            <div class="dashboard">
+                <div class="dashboard-section">
+                    <h3>Select NSE Company</h3>
+                    <div class="search-container">
+                        <input type="text" class="search-input" id="companySearch" placeholder="Search NSE companies..." autocomplete="off">
+                        <span class="search-icon">🔍</span>
+                    </div>
+                    <div class="dropdown" id="companyDropdown">
+                        <div class="dropdown-content" id="dropdownContent">
+                            <!-- Companies will be populated here -->
+                        </div>
+                    </div>
+                    <div id="selectedCompanyDisplay"></div>
+                </div>
+
+                <div class="dashboard-section">
+                    <h3><span class="live-indicator"></span>Live Market Rates</h3>
+                    <div id="rateDisplay">
+                        <p style="text-align: center; color: #888; font-style: italic;">Please select a company to view live rates</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mock NSE companies data
+        const nseCompanies = [
+            { symbol: "RELIANCE", name: "Reliance Industries Ltd", price: 2456.75, change: 23.45 },
+            { symbol: "TCS", name: "Tata Consultancy Services", price: 3812.30, change: -45.20 },
+            { symbol: "HDFCBANK", name: "HDFC Bank Ltd", price: 1687.90, change: 12.80 },
+            { symbol: "INFY", name: "Infosys Ltd", price: 1534.65, change: 28.90 },
+            { symbol: "HINDUNILVR", name: "Hindustan Unilever Ltd", price: 2789.45, change: -15.30 },
+            { symbol: "ICICIBANK", name: "ICICI Bank Ltd", price: 1089.20, change: 8.70 },
+            { symbol: "BHARTIARTL", name: "Bharti Airtel Ltd", price: 912.35, change: 15.60 },
+            { symbol: "ITC", name: "ITC Ltd", price: 456.80, change: -2.10 },
+            { symbol: "KOTAKBANK", name: "Kotak Mahindra Bank", price: 1876.50, change: 22.40 },
+            { symbol: "LT", name: "Larsen & Toubro Ltd", price: 3421.15, change: 67.85 },
+            { symbol: "WIPRO", name: "Wipro Ltd", price: 589.30, change: -8.45 },
+            { symbol: "MARUTI", name: "Maruti Suzuki India Ltd", price: 9876.20, change: 134.50 },
+            { symbol: "BAJFINANCE", name: "Bajaj Finance Ltd", price: 7234.80, change: -89.30 },
+            { symbol: "HCLTECH", name: "HCL Technologies Ltd", price: 1654.75, change: 32.15 },
+            { symbol: "SUNPHARMA", name: "Sun Pharmaceutical Industries", price: 1123.45, change: 18.90 }
+        ];
+
+        let selectedCompany = null;
+        let priceUpdateInterval = null;
+
+        // Login functionality
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const clientId = document.getElementById('clientId').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const loginBtn = document.getElementById('loginBtn');
+            const successMessage = document.getElementById('successMessage');
+            
+            console.log('Login attempt:', { clientId, password: '***', apiKey: '***' });
+            
+            // Check if all fields are filled
+            if (!clientId || !password || !apiKey) {
+                alert('Please fill in all fields before logging in.');
+                return;
+            }
+            
+            // Show loading state
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<span class="loading"></span>Authenticating...';
+            
+            // Show success message
+            successMessage.style.display = 'block';
+            
+            // Simulate API authentication
+            setTimeout(() => {
+                console.log('Authentication successful, switching to dashboard');
+                document.getElementById('loginScreen').classList.remove('active');
+                document.getElementById('dashboardScreen').classList.add('active');
+                initializeDashboard();
+                
+                // Reset login form
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = 'Login to Smart API';
+                successMessage.style.display = 'none';
+            }, 1500);
+        });
+
+        function initializeDashboard() {
+            const searchInput = document.getElementById('companySearch');
+            const dropdownContent = document.getElementById('dropdownContent');
+            
+            // Show all companies initially
+            displayCompanies(nseCompanies);
+            
+            // Search functionality
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const filteredCompanies = nseCompanies.filter(company => 
+                    company.name.toLowerCase().includes(searchTerm) || 
+                    company.symbol.toLowerCase().includes(searchTerm)
+                );
+                displayCompanies(filteredCompanies);
+            });
+
+            // Show dropdown when input is focused
+            searchInput.addEventListener('focus', function() {
+                document.getElementById('dropdownContent').classList.add('show');
+            });
+
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.search-container') && !e.target.closest('.dropdown')) {
+                    document.getElementById('dropdownContent').classList.remove('show');
+                }
+            });
+        }
+
+        function displayCompanies(companies) {
+            const dropdownContent = document.getElementById('dropdownContent');
+            dropdownContent.innerHTML = '';
+            
+            companies.forEach(company => {
+                const item = document.createElement('div');
+                item.className = 'dropdown-item';
+                item.innerHTML = `<strong>${company.symbol}</strong><br><small>${company.name}</small>`;
+                item.addEventListener('click', () => selectCompany(company));
+                dropdownContent.appendChild(item);
+            });
+            
+            dropdownContent.classList.add('show');
+        }
+
+        function selectCompany(company) {
+            selectedCompany = company;
+            document.getElementById('companySearch').value = `${company.symbol} - ${company.name}`;
+            document.getElementById('dropdownContent').classList.remove('show');
+            
+            // Display selected company
+            const selectedDisplay = document.getElementById('selectedCompanyDisplay');
+            selectedDisplay.innerHTML = `
+                <div class="selected-company">
+                    Selected: ${company.symbol} - ${company.name}
+                </div>
+            `;
+            
+            // Start displaying live rates
+            displayLiveRates(company);
+            startPriceUpdates();
+        }
+
+        function displayLiveRates(company) {
+            const rateDisplay = document.getElementById('rateDisplay');
+            const changeClass = company.change >= 0 ? 'positive' : 'negative';
+            const changeSymbol = company.change >= 0 ? '+' : '';
+            
+            rateDisplay.innerHTML = `
+                <div class="rate-display">
+                    <h4>Current Price</h4>
+                    <div class="rate-value">₹${company.price.toFixed(2)}</div>
+                    <div class="rate-change ${changeClass}">
+                        ${changeSymbol}${company.change.toFixed(2)} (${((company.change/company.price)*100).toFixed(2)}%)
+                    </div>
+                </div>
+            `;
+        }
+
+        function startPriceUpdates() {
+            if (priceUpdateInterval) {
+                clearInterval(priceUpdateInterval);
+            }
+            
+            priceUpdateInterval = setInterval(() => {
+                if (selectedCompany) {
+                    // Simulate price fluctuation
+                    const randomChange = (Math.random() - 0.5) * 10; // Random change between -5 and +5
+                    selectedCompany.price += randomChange;
+                    selectedCompany.change = randomChange;
+                    
+                    // Update the display
+                    displayLiveRates(selectedCompany);
+                    
+                    // Update the company in the main array
+                    const companyIndex = nseCompanies.findIndex(c => c.symbol === selectedCompany.symbol);
+                    if (companyIndex !== -1) {
+                        nseCompanies[companyIndex] = selectedCompany;
+                    }
+                }
+            }, 2000); // Update every 2 seconds
+        }
+
+        function logout() {
+            if (priceUpdateInterval) {
+                clearInterval(priceUpdateInterval);
+            }
+            
+            selectedCompany = null;
+            document.getElementById('dashboardScreen').classList.remove('active');
+            document.getElementById('loginScreen').classList.add('active');
+            
+            // Clear form
+            document.getElementById('loginForm').reset();
+        }
+    </script>
+</body>
+</html>
